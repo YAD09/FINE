@@ -1,0 +1,7 @@
+{
+  "name": "tasklinkedit ",
+  "description": "A student-to-student task marketplace connecting those who need help with those looking to earn.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
