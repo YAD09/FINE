@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { clsx } from 'clsx';
-import { Loader2, Star, Mic, Square, Play, ShieldCheck, Clock, AlertTriangle } from 'lucide-react';
+import { Loader2, Star, Mic, Square, Play, ShieldCheck, Clock, AlertTriangle, Info } from 'lucide-react';
 
 // --- BUTTON ---
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost' | 'glow' | 'premium' | 'success';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
 }
@@ -19,20 +19,23 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props 
 }) => {
-  const baseStyles = "inline-flex items-center justify-center font-medium transition-all duration-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95";
+  const baseStyles = "inline-flex items-center justify-center font-black tracking-widest transition-all duration-400 rounded-2xl focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.97] uppercase";
   
   const variants = {
-    primary: "bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-200 dark:shadow-none",
-    secondary: "bg-white dark:bg-slate-800 text-primary-700 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-slate-700 border border-primary-100 dark:border-slate-700 shadow-sm",
-    outline: "bg-transparent border-2 border-primary-600 dark:border-primary-500 text-primary-600 dark:text-primary-500 hover:bg-primary-50 dark:hover:bg-slate-800",
-    danger: "bg-red-500 text-white hover:bg-red-600 shadow-md shadow-red-200 dark:shadow-none",
-    ghost: "bg-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+    primary: "bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_10px_30px_-10px_rgba(79,70,229,0.4)] border border-indigo-400/20",
+    success: "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 border border-emerald-400/20",
+    glow: "bg-gradient-to-r from-indigo-600 to-violet-600 hover:brightness-110 text-white shadow-[0_0_20px_rgba(99,102,241,0.4)]",
+    premium: "bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:shadow-xl border border-white/10",
+    secondary: "bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10",
+    outline: "bg-transparent border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5",
+    danger: "bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20 border border-red-400/20",
+    ghost: "bg-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5"
   };
 
   const sizes = {
-    sm: "px-3 py-1.5 text-xs",
-    md: "px-4 py-2 text-sm",
-    lg: "px-6 py-3 text-base",
+    sm: "px-4 py-2 text-[10px]",
+    md: "px-6 py-3 text-xs",
+    lg: "px-10 py-4 text-sm",
   };
 
   return (
@@ -41,16 +44,23 @@ export const Button: React.FC<ButtonProps> = ({
       disabled={disabled || isLoading}
       {...props}
     >
-      {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-      {children}
+      {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : children}
     </button>
   );
 };
 
 // --- CARD ---
-export const Card: React.FC<{ children: React.ReactNode; className?: string; onClick?: () => void }> = ({ children, className, onClick }) => (
-  <div onClick={onClick} className={clsx("bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 hover:shadow-md transition-all duration-200 overflow-hidden", className)}>
-    {children}
+export const Card: React.FC<{ children: React.ReactNode; className?: string; onClick?: () => void; id?: string }> = ({ children, className, onClick, id }) => (
+  <div 
+    id={id}
+    onClick={onClick} 
+    className={clsx(
+      "glass-panel rounded-[2rem] p-8 transition-all duration-500 relative",
+      onClick ? "cursor-pointer hover:scale-[1.01] hover:shadow-2xl" : "",
+      className
+    )}
+  >
+    <div className="relative z-10">{children}</div>
   </div>
 );
 
@@ -58,29 +68,34 @@ export const Card: React.FC<{ children: React.ReactNode; className?: string; onC
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  hint?: string;
   icon?: React.ReactNode;
 }
 
-export const Input: React.FC<InputProps> = ({ label, error, icon, className, ...props }) => (
+// Added hint prop to Input component to support metadata and fix TS errors in consumers like PostTask
+export const Input: React.FC<InputProps> = ({ label, error, hint, icon, className, ...props }) => (
   <div className="w-full">
-    {label && <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">{label}</label>}
+    {label && <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 ml-1">{label}</label>}
     <div className="relative">
       {icon && (
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors pointer-events-none">
           {icon}
         </div>
       )}
       <input 
         className={clsx(
-          "w-full py-2.5 rounded-xl border bg-white dark:bg-slate-800 transition-colors outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400",
-          icon ? "pl-10 pr-4" : "px-4",
-          error ? "border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100" : "border-slate-200 dark:border-slate-700 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:focus:ring-primary-900",
+          "w-full py-4 rounded-2xl border transition-all outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400/60 font-medium",
+          icon ? "pl-12 pr-4" : "px-5",
+          error 
+            ? "border-red-500/50 bg-red-500/5" 
+            : "border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 focus:border-indigo-500 focus:bg-white dark:focus:bg-[#0F172A] focus:ring-4 focus:ring-indigo-500/5",
           className
         )}
         {...props}
       />
     </div>
-    {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    {error && <p className="mt-1.5 ml-1 text-[10px] font-bold text-red-500">{error}</p>}
+    {hint && !error && <p className="mt-1 ml-1 text-[10px] font-medium text-slate-400 dark:text-slate-500">{hint}</p>}
   </div>
 );
 
@@ -92,16 +107,56 @@ interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 
 export const TextArea: React.FC<TextAreaProps> = ({ label, error, className, ...props }) => (
   <div className="w-full">
-    {label && <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">{label}</label>}
+    {label && <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 mb-2 ml-1 uppercase tracking-widest">{label}</label>}
     <textarea 
       className={clsx(
-        "w-full px-4 py-3 rounded-xl border bg-white dark:bg-slate-800 transition-colors outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400",
-        error ? "border-red-300 focus:border-red-500" : "border-slate-200 dark:border-slate-700 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:focus:ring-primary-900",
+        "w-full px-5 py-4 rounded-2xl border transition-all outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400/60 resize-none font-medium",
+        error 
+          ? "border-red-500/50 bg-red-500/5" 
+          : "border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 focus:border-indigo-500 focus:bg-white dark:focus:bg-[#0F172A]",
         className
       )}
       {...props}
     />
-    {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    {error && <p className="mt-1.5 ml-1 text-[10px] font-bold text-red-500">{error}</p>}
+  </div>
+);
+
+// --- BADGE ---
+export const Badge: React.FC<{ children: React.ReactNode; color?: 'blue' | 'green' | 'yellow' | 'red' | 'gray' | 'indigo' | 'purple'; className?: string }> = ({ children, color = 'blue', className }) => {
+  const colors = {
+    blue: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+    green: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+    yellow: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+    red: "bg-red-500/10 text-red-600 border-red-500/20",
+    gray: "bg-slate-500/10 text-slate-600 border-slate-500/20",
+    indigo: "bg-indigo-500/10 text-indigo-600 border-indigo-500/20",
+    purple: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+  };
+  
+  return (
+    <span className={clsx("px-2.5 py-1 rounded-lg text-[10px] font-black border uppercase tracking-widest", colors[color], className)}>
+      {children}
+    </span>
+  );
+};
+
+// --- PROGRESS BAR ---
+// This component is required by Dashboard.tsx for visualizing task completion.
+export const ProgressBar: React.FC<{ value: number; color?: string; label?: string }> = ({ value, color = 'bg-indigo-600', label }) => (
+  <div className="w-full">
+    {label && (
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{label}</span>
+        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{value}%</span>
+      </div>
+    )}
+    <div className="w-full bg-slate-100 dark:bg-white/5 h-2 rounded-full overflow-hidden">
+      <div 
+        className={clsx("h-full transition-all duration-1000 rounded-full", color)} 
+        style={{ width: `${value}%` }}
+      />
+    </div>
   </div>
 );
 
@@ -129,14 +184,14 @@ export const StarRating: React.FC<StarRatingProps> = ({ rating, onRatingChange, 
           onClick={() => !readOnly && onRatingChange && onRatingChange(star)}
           disabled={readOnly}
           className={clsx(
-            "transition-colors",
+            "transition-all duration-300",
             readOnly ? "cursor-default" : "cursor-pointer hover:scale-110"
           )}
         >
           <Star 
             className={clsx(
               sizeClasses[size], 
-              star <= rating ? "fill-yellow-400 text-yellow-400" : "text-slate-300 dark:text-slate-600"
+              star <= rating ? "fill-amber-400 text-amber-400" : "text-slate-200 dark:text-slate-800"
             )} 
           />
         </button>
@@ -145,37 +200,19 @@ export const StarRating: React.FC<StarRatingProps> = ({ rating, onRatingChange, 
   );
 };
 
-// --- BADGE ---
-export const Badge: React.FC<{ children: React.ReactNode; color?: 'blue' | 'green' | 'yellow' | 'red' | 'gray' | 'indigo' }> = ({ children, color = 'blue' }) => {
-  const colors = {
-    blue: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
-    green: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
-    yellow: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
-    red: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300",
-    gray: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300",
-    indigo: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300",
-  };
-  
-  return (
-    <span className={clsx("px-2.5 py-0.5 rounded-full text-xs font-semibold", colors[color])}>
-      {children}
-    </span>
-  );
-};
-
 // --- MODAL ---
 export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }> = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-2xl animate-in fade-in zoom-in duration-200 border border-slate-100 dark:border-slate-800">
-        <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-slate-800">
-          <h3 className="font-bold text-lg text-slate-800 dark:text-white">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="glass-panel w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-300 overflow-hidden relative border border-white/20 rounded-[2.5rem]">
+        <div className="flex justify-between items-center px-8 py-6 border-b border-slate-100 dark:border-white/5">
+          <h3 className="font-display font-black text-lg text-slate-900 dark:text-white tracking-tight">{title}</h3>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition-colors">
+            <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
-        <div className="p-6 overflow-y-auto max-h-[80vh]">
+        <div className="p-8 overflow-y-auto max-h-[80vh]">
           {children}
         </div>
       </div>
@@ -187,7 +224,6 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: stri
 export const VoiceRecorder: React.FC<{ onRecordComplete: (blobUrl: string) => void }> = ({ onRecordComplete }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
-  const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let interval: any;
@@ -201,56 +237,29 @@ export const VoiceRecorder: React.FC<{ onRecordComplete: (blobUrl: string) => vo
 
   const handleToggleRecord = () => {
     if (isRecording) {
-      // Stop
       setIsRecording(false);
-      // Simulate Blob
-      const mockUrl = "mock_audio_blob";
-      setRecordedUrl(mockUrl);
-      onRecordComplete(mockUrl);
+      onRecordComplete("mock_audio_blob");
     } else {
-      // Start
       setIsRecording(true);
-      setRecordedUrl(null);
     }
   };
 
-  const formatTime = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
   return (
-    <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+    <div className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
       <button 
         type="button"
         onClick={handleToggleRecord}
         className={clsx(
-          "w-10 h-10 rounded-full flex items-center justify-center transition-all",
-          isRecording ? "bg-red-100 text-red-600 animate-pulse" : "bg-primary-100 text-primary-600"
+          "w-12 h-12 rounded-xl flex items-center justify-center transition-all",
+          isRecording ? "bg-red-500 text-white animate-pulse" : "bg-indigo-600 text-white"
         )}
       >
-        {isRecording ? <Square className="w-4 h-4 fill-current" /> : <Mic className="w-5 h-5" />}
+        <Mic className="w-5 h-5" />
       </button>
-      
       <div className="flex-1">
-        {isRecording ? (
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-            <span className="text-sm font-mono font-bold text-slate-700 dark:text-slate-300">{formatTime(duration)}</span>
-            <span className="text-xs text-slate-400">Recording...</span>
-          </div>
-        ) : recordedUrl ? (
-          <div className="flex items-center gap-2">
-             <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-600 dark:text-green-400">
-                <Play className="w-3 h-3 fill-current" />
-             </div>
-             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Voice Note Recorded</span>
-             <button type="button" onClick={() => {setRecordedUrl(null); onRecordComplete('');}} className="text-xs text-red-500 hover:underline ml-2">Delete</button>
-          </div>
-        ) : (
-          <p className="text-sm text-slate-500 dark:text-slate-400">Tap microphone to record instructions</p>
-        )}
+        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
+          {isRecording ? `Recording... ${duration}s` : "Add Voice Instruction"}
+        </p>
       </div>
     </div>
   );
@@ -270,7 +279,7 @@ export const CountdownTimer: React.FC<{ deadline: string }> = ({ deadline }) => 
           s: Math.floor((diff / 1000) % 60),
         });
       } else {
-        setTimeLeft(null); // Expired
+        setTimeLeft(null);
       }
     };
     calculateTimeLeft();
@@ -278,20 +287,12 @@ export const CountdownTimer: React.FC<{ deadline: string }> = ({ deadline }) => 
     return () => clearInterval(timer);
   }, [deadline]);
 
-  if (!timeLeft) return <Badge color="red">Deadline Passed</Badge>;
-
-  const isUrgent = timeLeft.h < 24;
+  if (!timeLeft) return <Badge color="red">Expired</Badge>;
 
   return (
-    <div className={clsx(
-      "flex items-center gap-2 px-3 py-1.5 rounded-lg border",
-      isUrgent ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400" : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-    )}>
-      <Clock className="w-4 h-4 animate-pulse" />
-      <span className="font-mono font-bold text-sm">
-        {timeLeft.h}h {timeLeft.m}m {timeLeft.s}s
-      </span>
-      {isUrgent && <span className="text-[10px] uppercase font-bold ml-1">Urgent</span>}
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-white/5 bg-white/50 dark:bg-white/5 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest">
+      <Clock className="w-3.5 h-3.5" />
+      <span>{timeLeft.h}h {timeLeft.m}m {timeLeft.s}s</span>
     </div>
   );
 };
@@ -305,14 +306,13 @@ export const FileVerifier: React.FC<{ onFileSelect: (file: File) => void, accept
     const file = e.target.files?.[0];
     if (file) {
       setStatus('SCANNING');
-      // Simulate scan
       setTimeout(() => {
         if (file.name.includes('virus')) setStatus('DANGER');
         else {
            setStatus('SAFE');
            onFileSelect(file);
         }
-      }, 1500);
+      }, 1200);
     }
   };
 
@@ -323,17 +323,16 @@ export const FileVerifier: React.FC<{ onFileSelect: (file: File) => void, accept
         type="button" 
         onClick={() => inputRef.current?.click()}
         className={clsx(
-          "w-full border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-2 transition-all",
-          status === 'IDLE' && "border-slate-300 dark:border-slate-700 hover:border-primary-500",
-          status === 'SCANNING' && "border-blue-300 bg-blue-50 dark:bg-blue-900/10",
-          status === 'SAFE' && "border-green-300 bg-green-50 dark:bg-green-900/10",
-          status === 'DANGER' && "border-red-300 bg-red-50 dark:bg-red-900/10"
+          "w-full border-2 border-dashed rounded-[1.5rem] p-6 flex flex-col items-center justify-center gap-3 transition-all",
+          status === 'IDLE' && "border-slate-200 dark:border-white/10 hover:border-indigo-500",
+          status === 'SCANNING' && "border-indigo-500 bg-indigo-500/5",
+          status === 'SAFE' && "border-emerald-500 bg-emerald-500/5",
+          status === 'DANGER' && "border-red-500 bg-red-500/5"
         )}
       >
-        {status === 'IDLE' && <span className="text-sm text-slate-500">Click to upload (Auto-Scanned)</span>}
-        {status === 'SCANNING' && <div className="flex items-center gap-2 text-blue-600 text-sm"><Loader2 className="w-4 h-4 animate-spin" /> Scanning for viruses...</div>}
-        {status === 'SAFE' && <div className="flex items-center gap-2 text-green-600 text-sm"><ShieldCheck className="w-4 h-4" /> Verified Safe</div>}
-        {status === 'DANGER' && <div className="flex items-center gap-2 text-red-600 text-sm"><AlertTriangle className="w-4 h-4" /> Threat Detected</div>}
+        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+          {status === 'IDLE' ? 'Secure File Upload' : status === 'SCANNING' ? 'Verification in progress...' : status === 'SAFE' ? 'Scan Complete: Safe' : 'Threat Detected'}
+        </span>
       </button>
     </div>
   );

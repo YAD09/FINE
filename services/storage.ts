@@ -90,9 +90,10 @@ const SEED_TASKS: Task[] = [
   }
 ];
 
+// Added missing idempotencyKey to resolve TS error
 const SEED_TRANSACTIONS: Transaction[] = [
-  { id: 'tx-1', userId: 'u-1', type: 'DEPOSIT', amount: 5000.00, date: '2023-10-01T10:00:00Z', description: 'Initial Deposit', status: 'SUCCESS' },
-  { id: 'tx-2', userId: 'u-2', type: 'ESCROW_LOCK', amount: 4500.00, date: '2023-11-01T10:00:00Z', description: 'Task: Logo Design', status: 'SUCCESS' }
+  { id: 'tx-1', userId: 'u-1', type: 'DEPOSIT', amount: 5000.00, date: '2023-10-01T10:00:00Z', description: 'Initial Deposit', status: 'SUCCESS', idempotencyKey: 'seed-dep-1' },
+  { id: 'tx-2', userId: 'u-2', type: 'ESCROW_LOCK', amount: 4500.00, date: '2023-11-01T10:00:00Z', description: 'Task: Logo Design', status: 'SUCCESS', idempotencyKey: 'seed-lock-1' }
 ];
 
 export const StorageService = {

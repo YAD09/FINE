@@ -1,10 +1,16 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Modal } from '../components/UI';
 import { User, Transaction } from '../types';
-import { ArrowUpRight, ArrowDownLeft, Lock, CreditCard, Smartphone, Building, Wallet as WalletIcon, CheckCircle2, Filter, RefreshCw, AlertCircle, Clock, Zap } from 'lucide-react';
-import { API, getErrorMessage } from '../services/api';
-import { supabase } from '../services/supabase';
+import { ArrowUpRight, ArrowDownLeft, Lock, CreditCard, Smartphone, Building, Wallet as WalletIcon, RefreshCw, AlertCircle, Plus, ShieldCheck, Zap } from 'lucide-react';
+import { API, getErrorMessage, getIsDemoMode } from '../services/api';
+import { clsx } from 'clsx';
+
+// Type declaration for Razorpay global
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 interface WalletProps {
   user: User;
@@ -15,7 +21,6 @@ export const Wallet: React.FC<WalletProps> = ({ user, onUpdateUser }) => {
   const [showAddFunds, setShowAddFunds] = useState(false);
   const [amountToAdd, setAmountToAdd] = useState('');
   
-  // Withdrawal State
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawMethod, setWithdrawMethod] = useState<'UPI' | 'BANK'>('UPI');
@@ -24,15 +29,7 @@ export const Wallet: React.FC<WalletProps> = ({ user, onUpdateUser }) => {
   const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedMethod, setSelectedMethod] = useState<'UPI' | 'CARD' | 'NETBANKING' | null>(null);
-  
-  // Payment Form State
-  const [upiId, setUpiId] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [expiry, setExpiry] = useState('');
-  const [cvv, setCvv] = useState('');
-  const [selectedBank, setSelectedBank] = useState('');
-  const [paymentStep, setPaymentStep] = useState<'FORM' | 'PROCESSING' | 'SUCCESS'>('FORM');
+  const [selectedMethod, setSelectedMethod] = useState<'RAZORPAY' | null>('RAZORPAY');
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
@@ -40,21 +37,6 @@ export const Wallet: React.FC<WalletProps> = ({ user, onUpdateUser }) => {
 
   useEffect(() => {
     loadTransactions();
-
-    // Subscribe to realtime transaction updates
-    const channel = supabase.channel(`realtime:transactions:${user.id}`)
-        .on(
-            'postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` }, 
-            (payload) => {
-                loadTransactions();
-            }
-        )
-        .subscribe();
-        
-    return () => {
-        supabase.removeChannel(channel);
-    };
   }, [user.id]);
 
   const loadTransactions = async () => {
@@ -63,428 +45,248 @@ export const Wallet: React.FC<WalletProps> = ({ user, onUpdateUser }) => {
         const txs = await API.wallet.getTransactions(user.id);
         setTransactions(txs);
       } catch (e) {
-          console.error("Failed to load transactions", e);
+          console.error("Ledger Load Failure:", getErrorMessage(e));
       } finally {
           setIsLoadingHistory(false);
       }
   };
 
-  const handleAddFunds = async () => {
-    if (!amountToAdd || isNaN(Number(amountToAdd)) || !selectedMethod) return;
+  const initializeRazorpayPayment = () => {
+    if (!amountToAdd || isNaN(Number(amountToAdd))) return;
     
-    setPaymentStep('PROCESSING');
     setIsProcessing(true);
+    const amountInPaise = Math.round(parseFloat(amountToAdd) * 100);
 
-    // Simulate Payment Gateway Delay
-    setTimeout(async () => {
+    const options = {
+      // Razorpay Key ID provided by the user
+      key: "rzp_test_RycOZpKplMZ1ri", 
+      amount: amountInPaise,
+      currency: "INR",
+      name: "TaskLink Wallet",
+      description: "Wallet Refill - Secure Student Transaction",
+      image: "https://api.dicebear.com/7.x/initials/svg?seed=TL",
+      handler: async function (response: any) {
+        // This callback executes on successful payment
         try {
-            const amount = parseFloat(amountToAdd);
-            const updatedUser = await API.wallet.addFunds(user, amount, selectedMethod);
-            
-            await API.notifications.send(
-                user.id,
-                "Funds Added",
-                `₹${amount} added successfully via ${selectedMethod}.`,
-                "SUCCESS",
-                "/wallet"
-            );
-
-            onUpdateUser(updatedUser);
-            await loadTransactions();
-            
-            setPaymentStep('SUCCESS');
-            setIsProcessing(false);
-            
-            // Auto close after success
-            setTimeout(() => {
-                setShowAddFunds(false);
-                setPaymentStep('FORM');
-                setAmountToAdd('');
-                setSelectedMethod(null);
-                setUpiId(''); setCardNumber(''); setExpiry(''); setCvv(''); setSelectedBank('');
-            }, 2000);
-            
+          const updatedUser = await API.wallet.addFunds(
+            user, 
+            parseFloat(amountToAdd), 
+            `Razorpay: ${response.razorpay_payment_id}`
+          );
+          onUpdateUser(updatedUser);
+          await loadTransactions();
+          setShowAddFunds(false);
+          alert(`Success! Payment ID: ${response.razorpay_payment_id}`);
         } catch (error) {
-            console.error(error);
-            alert(`Transaction failed: ${getErrorMessage(error)}`);
-            setPaymentStep('FORM');
-            setIsProcessing(false);
+          alert("Wallet update failed: " + getErrorMessage(error));
+        } finally {
+          setIsProcessing(false);
         }
-    }, 2000);
+      },
+      prefill: {
+        name: user.name,
+        email: user.email,
+        contact: "" 
+      },
+      notes: {
+        userId: user.id,
+        purpose: "wallet_deposit"
+      },
+      theme: {
+        color: "#6366f1"
+      },
+      modal: {
+        ondismiss: function() {
+          setIsProcessing(false);
+        }
+      }
+    };
+
+    const rzp = new window.Razorpay(options);
+    rzp.open();
   };
 
   const handleWithdraw = async () => {
-      if (!withdrawAmount || isNaN(Number(withdrawAmount))) return;
-      if (Number(withdrawAmount) > user.balance) { alert('Insufficient balance'); return; }
-      if (!withdrawDetails) { alert('Please enter withdrawal details'); return; }
-      
+      if (!withdrawAmount || Number(withdrawAmount) > user.balance) return;
       setIsWithdrawing(true);
       try {
-          const isInstant = withdrawSpeed === 'INSTANT';
-          const updatedUser = await API.wallet.withdrawFunds(user, Number(withdrawAmount), withdrawMethod, withdrawDetails, isInstant);
-          
-          await API.notifications.send(
-              user.id,
-              "Withdrawal Requested",
-              `Withdrawal of ₹${withdrawAmount} via ${withdrawMethod} initiated.`,
-              "INFO",
-              "/wallet"
-          );
-
+          const updatedUser = await API.wallet.withdrawFunds(user, Number(withdrawAmount), withdrawMethod, withdrawDetails, withdrawSpeed === 'INSTANT');
           onUpdateUser(updatedUser);
           await loadTransactions();
-          
           setShowWithdraw(false);
-          setWithdrawAmount('');
-          setWithdrawDetails('');
-          setWithdrawSpeed('STANDARD');
-          alert('Withdrawal request successful!');
+          alert("Withdrawal request initiated via RazorpayX Payouts.");
       } catch (e) {
-          alert('Withdrawal failed: ' + getErrorMessage(e));
+          alert(getErrorMessage(e));
       } finally {
           setIsWithdrawing(false);
       }
   };
 
-  const isAddFormValid = () => {
-      if (!amountToAdd || isNaN(Number(amountToAdd))) return false;
-      if (!selectedMethod) return false;
-      if (selectedMethod === 'UPI') return upiId.includes('@');
-      if (selectedMethod === 'CARD') return cardNumber.length >= 12 && expiry.length >= 4 && cvv.length >= 3;
-      if (selectedMethod === 'NETBANKING') return selectedBank !== '';
-      return false;
-  };
-
-  // --- Logic for displaying transactions ---
-  const isIncoming = (type: string) => {
-      return ['DEPOSIT', 'PAYMENT_RELEASE', 'REFUND', 'DISPUTE_RESOLUTION'].includes(type);
-  };
-
-  const getTransactionConfig = (type: string) => {
-      if (isIncoming(type)) {
-          return {
-              icon: ArrowDownLeft,
-              color: 'text-emerald-600 dark:text-emerald-400',
-              bg: 'bg-emerald-100 dark:bg-emerald-900/20',
-              sign: '+',
-              label: type.replace(/_/g, ' ')
-          };
-      } else {
-          // Outgoing: WITHDRAWAL, ESCROW_LOCK
-          const isWithdrawal = type === 'WITHDRAWAL';
-          return {
-              icon: ArrowUpRight,
-              color: isWithdrawal ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-300',
-              bg: isWithdrawal ? 'bg-red-100 dark:bg-red-900/20' : 'bg-slate-100 dark:bg-slate-800',
-              sign: '-',
-              label: type.replace(/_/g, ' ')
-          };
-      }
-  };
-
-  const filteredTransactions = transactions.filter(tx => {
-      if (historyFilter === 'ALL') return true;
-      if (historyFilter === 'INCOME') return isIncoming(tx.type);
-      if (historyFilter === 'EXPENSE') return !isIncoming(tx.type);
-      return true;
-  });
+  const isIncoming = (type: string) => ['DEPOSIT', 'PAYMENT_RELEASE', 'REFUND', 'DISPUTE_RESOLUTION'].includes(type);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900 dark:text-white">My Wallet</h1>
+    <div className="max-w-4xl mx-auto space-y-12 pb-20">
+      <div className="flex justify-between items-end">
+          <div>
+              <h1 className="text-4xl font-display font-black text-slate-900 dark:text-white tracking-tighter mb-2">Assets</h1>
+              <p className="text-slate-400 font-medium">Manage your capital and escrowed funds via Razorpay.</p>
+          </div>
+          <button onClick={() => loadTransactions()} className="p-3 text-slate-400 hover:text-indigo-500 transition-colors">
+              <RefreshCw className={clsx("w-5 h-5", isLoadingHistory && "animate-spin")} />
+          </button>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Main Balance Card */}
-        <div className="bg-primary-600 rounded-2xl p-6 text-white shadow-xl shadow-primary-200 dark:shadow-none relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-32 bg-white opacity-5 rounded-full -mr-16 -mt-16 pointer-events-none"></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="relative h-64 rounded-[2.5rem] bg-indigo-600 p-10 text-white shadow-2xl shadow-indigo-600/30 overflow-hidden flex flex-col justify-between group">
+          <div className="absolute top-0 right-0 p-40 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl pointer-events-none group-hover:bg-white/20 transition-all"></div>
           
-          <p className="text-primary-100 font-medium mb-1">Available Balance</p>
-          <h2 className="text-4xl font-bold mb-8">₹{Number(user.balance || 0).toFixed(2)}</h2>
-          
-          <div className="flex gap-3">
-             <button 
-                onClick={() => setShowAddFunds(true)}
-                className="flex-1 bg-white text-primary-600 py-2.5 rounded-xl font-bold text-sm hover:bg-primary-50 transition-colors flex items-center justify-center gap-2"
-             >
-               <ArrowDownLeft className="w-4 h-4" /> Add Funds
+          <div className="relative z-10">
+              <p className="label-premium !text-white/60 mb-2">Available Capital</p>
+              <h2 className="text-5xl font-display font-black tracking-tighter">₹{user.balance.toLocaleString()}</h2>
+          </div>
+
+          <div className="flex gap-4 relative z-10">
+             <button onClick={() => setShowAddFunds(true)} className="flex-1 bg-white text-indigo-600 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
+               <Plus className="w-4 h-4" /> Add Cash
              </button>
-             <button 
-                onClick={() => setShowWithdraw(true)}
-                className="flex-1 bg-primary-700 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-primary-800 transition-colors flex items-center justify-center gap-2"
-             >
+             <button onClick={() => setShowWithdraw(true)} className="flex-1 bg-indigo-700 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-800 transition-all flex items-center justify-center gap-2 border border-white/10">
                <ArrowUpRight className="w-4 h-4" /> Withdraw
              </button>
           </div>
         </div>
 
-        {/* Escrow Card */}
-        <Card className="p-6 flex flex-col justify-center relative overflow-hidden bg-amber-50 dark:bg-slate-800 border-amber-200 dark:border-slate-700">
-           <div className="absolute right-0 top-0 p-20 bg-amber-100 dark:bg-amber-900/10 rounded-full -mr-10 -mt-10 pointer-events-none"></div>
-           <div className="flex items-center gap-3 mb-2 relative z-10">
-             <div className="p-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg">
-               <Lock className="w-5 h-5" />
-             </div>
-             <span className="font-bold text-slate-700 dark:text-slate-200">Locked in Escrow</span>
+        <Card className="!p-10 flex flex-col justify-between border-transparent !bg-amber-500/5 hover:border-amber-500/20 transition-all">
+           <div>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-amber-500/10 text-amber-600 rounded-2xl">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <span className="label-premium !text-amber-600">Escrow Containment</span>
+              </div>
+              <p className="text-4xl font-display font-black text-slate-900 dark:text-white tracking-tighter mb-2">₹{user.escrowBalance.toLocaleString()}</p>
+              <p className="text-sm text-slate-400 font-medium leading-relaxed">Secured in student smart vault. Protected by Escrow Protocol.</p>
            </div>
-           <p className="text-3xl font-bold text-slate-900 dark:text-white mb-1 relative z-10">₹{Number(user.escrowBalance || 0).toFixed(2)}</p>
-           <p className="text-sm text-slate-500 dark:text-slate-400 relative z-10">Funds are held safely here until tasks are completed or refunded.</p>
+           <div className="h-1.5 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden mt-4">
+               <div className="h-full bg-amber-500 w-1/3"></div>
+           </div>
         </Card>
       </div>
 
-      <div className="mt-8">
-        <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-lg text-slate-800 dark:text-white">Transaction History</h3>
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-                <button 
-                    onClick={() => setHistoryFilter('ALL')}
-                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${historyFilter === 'ALL' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
-                >
-                    All
-                </button>
-                <button 
-                    onClick={() => setHistoryFilter('INCOME')}
-                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${historyFilter === 'INCOME' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
-                >
-                    Income
-                </button>
-                <button 
-                    onClick={() => setHistoryFilter('EXPENSE')}
-                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${historyFilter === 'EXPENSE' ? 'bg-white dark:bg-slate-700 text-red-500 dark:text-red-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
-                >
-                    Expense
-                </button>
+      <div>
+        <div className="flex justify-between items-center mb-10">
+            <h3 className="text-[13px] font-black text-slate-900 dark:text-white uppercase tracking-[0.3em]">Financial Ledger</h3>
+            <div className="flex bg-slate-100/50 dark:bg-white/5 p-1 rounded-xl">
+                {['ALL', 'INCOME', 'EXPENSE'].map(f => (
+                    <button key={f} onClick={() => setHistoryFilter(f as any)} className={clsx("px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all", historyFilter === f ? 'bg-white dark:bg-white/10 text-indigo-600 dark:text-white shadow-sm' : 'text-slate-400')}>{f}</button>
+                ))}
             </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden min-h-[250px]">
+        <div className="space-y-3">
           {isLoadingHistory ? (
-              <div className="flex flex-col items-center justify-center h-[250px] text-slate-400">
-                  <RefreshCw className="w-6 h-6 animate-spin mb-2" />
-                  <p className="text-sm">Loading transactions...</p>
+              <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-4">
+                  <RefreshCw className="w-8 h-8 animate-spin opacity-30" />
+                  <p className="label-premium">Syncing Ledger...</p>
               </div>
-          ) : filteredTransactions.length === 0 ? (
-             <div className="p-8 text-center text-slate-400 flex flex-col items-center justify-center h-[250px]">
-                 <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-3">
-                     <WalletIcon className="w-6 h-6 opacity-50" />
-                 </div>
-                 <p className="font-medium">No transactions found</p>
-                 {historyFilter !== 'ALL' && <p className="text-xs mt-1">Try changing the filter</p>}
+          ) : transactions.length === 0 ? (
+             <div className="py-24 text-center glass-panel border-dashed rounded-[3rem] border-slate-200 dark:border-white/5">
+                 <WalletIcon className="w-12 h-12 text-slate-200 dark:text-white/10 mx-auto mb-6" />
+                 <p className="label-premium">No Transactions Yet</p>
              </div>
           ) : (
-             filteredTransactions.map((tx, idx) => {
-                const config = getTransactionConfig(tx.type);
-                const Icon = config.icon;
+             transactions.filter(tx => historyFilter === 'ALL' || (historyFilter === 'INCOME' ? isIncoming(tx.type) : !isIncoming(tx.type))).map((tx) => {
+                const incoming = isIncoming(tx.type);
                 return (
-                    <div key={tx.id} className={`p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${idx !== filteredTransactions.length -1 ? 'border-b border-slate-50 dark:border-slate-800' : ''}`}>
-                        <div className="flex items-center gap-4">
-                            <div className={`p-2.5 rounded-full shrink-0 ${config.bg} ${config.color}`}>
-                                <Icon className="w-5 h-5" />
+                    <Card key={tx.id} className="!p-5 hover:border-indigo-500/10 transition-all border-transparent flex items-center justify-between group">
+                        <div className="flex items-center gap-5">
+                            <div className={clsx("p-3 rounded-2xl shrink-0 transition-all group-hover:scale-110", incoming ? "bg-emerald-500/10 text-emerald-600" : "bg-slate-100 dark:bg-white/5 text-slate-500")}>
+                                {incoming ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
                             </div>
                             <div>
-                                <p className="font-semibold text-slate-800 dark:text-white line-clamp-1">{tx.description}</p>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                                        {config.label}
-                                    </span>
-                                    <span className="text-xs text-slate-400">
-                                        {new Date(tx.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                    </span>
+                                <p className="text-[14px] font-bold text-slate-800 dark:text-white tracking-tight">{tx.description}</p>
+                                <div className="flex items-center gap-3 mt-1">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{tx.type.replace(/_/g, ' ')}</span>
+                                    <span className="text-[9px] text-slate-300 dark:text-slate-600 uppercase font-bold">{new Date(tx.date).toLocaleDateString()}</span>
                                 </div>
                             </div>
                         </div>
-                        <span className={`font-bold text-lg ${config.color} whitespace-nowrap`}>
-                            {config.sign}₹{Number(tx.amount || 0).toFixed(2)}
+                        <span className={clsx("text-xl font-display font-black tracking-tight", incoming ? "text-emerald-500" : "text-slate-900 dark:text-white")}>
+                            {incoming ? '+' : '-'}₹{tx.amount.toLocaleString()}
                         </span>
-                    </div>
+                    </Card>
                 );
              })
           )}
         </div>
       </div>
 
-      {/* Add Funds Modal */}
-      <Modal isOpen={showAddFunds} onClose={() => { if(paymentStep === 'FORM') setShowAddFunds(false); }} title="Add Funds to Wallet">
-         {paymentStep === 'FORM' && (
-            <div className="space-y-6 animate-in fade-in">
-                <div>
-                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">Amount</label>
-                    <div className="relative">
-                        <span className="absolute left-4 top-3 text-slate-400 font-bold">₹</span>
-                        <input 
-                            type="number" 
-                            value={amountToAdd}
-                            onChange={(e) => setAmountToAdd(e.target.value)}
-                            className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-900 focus:border-primary-500 outline-none font-bold text-xl text-slate-900 dark:text-white"
-                            placeholder="0.00"
-                            autoFocus
-                        />
-                    </div>
+      <Modal isOpen={showAddFunds} onClose={() => !isProcessing && setShowAddFunds(false)} title="Capital Deposit">
+         <div className="space-y-8 p-4">
+            <div className="space-y-2">
+                <label className="label-premium">Deposit Amount (₹)</label>
+                <div className="relative">
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 text-4xl font-black text-slate-300">₹</span>
+                    <input type="number" className="w-full pl-8 text-4xl font-display font-black text-slate-900 dark:text-white bg-transparent outline-none focus:text-indigo-600 transition-colors" placeholder="0.00" value={amountToAdd} onChange={e => setAmountToAdd(e.target.value)} />
                 </div>
-
-                <div>
-                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">Payment Method</label>
-                    <div className="grid grid-cols-3 gap-3">
-                        <button 
-                            onClick={() => setSelectedMethod('UPI')}
-                            className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${selectedMethod === 'UPI' ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                        >
-                            <Smartphone className="w-6 h-6" />
-                            <span className="text-xs font-bold">UPI</span>
-                        </button>
-                        <button 
-                            onClick={() => setSelectedMethod('CARD')}
-                            className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${selectedMethod === 'CARD' ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                        >
-                            <CreditCard className="w-6 h-6" />
-                            <span className="text-xs font-bold">Card</span>
-                        </button>
-                        <button 
-                            onClick={() => setSelectedMethod('NETBANKING')}
-                            className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${selectedMethod === 'NETBANKING' ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                        >
-                            <Building className="w-6 h-6" />
-                            <span className="text-xs font-bold">Net Banking</span>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Dynamic Inputs */}
-                {selectedMethod && (
-                    <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 space-y-3 animate-in fade-in slide-in-from-top-2">
-                        {selectedMethod === 'UPI' && (
-                            <div>
-                                <Input label="UPI ID" placeholder="e.g. user@oksbi" value={upiId} onChange={e => setUpiId(e.target.value)} />
-                            </div>
-                        )}
-                        {selectedMethod === 'CARD' && (
-                            <div className="space-y-3">
-                                <Input label="Card Number" placeholder="0000 0000 0000 0000" value={cardNumber} onChange={e => setCardNumber(e.target.value)} />
-                                <div className="grid grid-cols-2 gap-3">
-                                    <Input placeholder="MM/YY" value={expiry} onChange={e => setExpiry(e.target.value)} />
-                                    <Input placeholder="CVV" type="password" value={cvv} onChange={e => setCvv(e.target.value)} maxLength={3} />
-                                </div>
-                            </div>
-                        )}
-                        {selectedMethod === 'NETBANKING' && (
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">Select Bank</label>
-                                <select className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white" value={selectedBank} onChange={e => setSelectedBank(e.target.value)}>
-                                    <option value="">-- Choose Bank --</option>
-                                    <option value="sbi">State Bank of India</option>
-                                    <option value="hdfc">HDFC Bank</option>
-                                </select>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                <Button className="w-full h-12 text-lg" onClick={handleAddFunds} disabled={!isAddFormValid()}>
-                    Pay ₹{amountToAdd || '0'}
-                </Button>
             </div>
-         )}
-         
-         {paymentStep === 'PROCESSING' && (
-             <div className="flex flex-col items-center justify-center py-10 animate-in fade-in">
-                 <RefreshCw className="w-12 h-12 text-primary-500 animate-spin mb-4" />
-                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Processing Payment</h3>
-                 <p className="text-slate-500 dark:text-slate-400 text-center">Please wait while we securely add funds to your wallet...</p>
-             </div>
-         )}
+            
+            <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-100 dark:border-white/5 flex items-center gap-4">
+                <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-500">
+                    <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest mb-1">Razorpay Secured</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Cards, UPI, and Netbanking supported.</p>
+                </div>
+            </div>
 
-         {paymentStep === 'SUCCESS' && (
-             <div className="flex flex-col items-center justify-center py-10 animate-in zoom-in">
-                 <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
-                     <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />
-                 </div>
-                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Payment Successful!</h3>
-                 <p className="text-slate-500 dark:text-slate-400 text-center">Funds have been added to your wallet.</p>
-             </div>
-         )}
+            <Button className="w-full h-16 text-lg" onClick={initializeRazorpayPayment} disabled={!amountToAdd || Number(amountToAdd) <= 0} isLoading={isProcessing}>
+                <Zap className="w-5 h-5 mr-2" /> Pay with Razorpay
+            </Button>
+         </div>
       </Modal>
 
-      {/* Withdraw Modal */}
-      <Modal isOpen={showWithdraw} onClose={() => setShowWithdraw(false)} title="Withdraw Funds">
-         <div className="space-y-6">
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl text-sm text-blue-800 dark:text-blue-300 flex justify-between items-center">
-                <span>Available Balance:</span>
-                <span className="font-bold text-lg">₹{user.balance.toFixed(2)}</span>
+      <Modal isOpen={showWithdraw} onClose={() => setShowWithdraw(false)} title="Secure Withdrawal">
+         <div className="space-y-8 p-4">
+            <div className="space-y-2 text-center">
+                <label className="label-premium block mb-4">Transfer Amount</label>
+                <input type="number" className="w-full text-5xl font-display font-black text-slate-900 dark:text-white bg-transparent outline-none text-center focus:text-indigo-600 transition-colors" placeholder="0.00" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} />
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-6">Available: ₹{user.balance.toLocaleString()}</p>
             </div>
 
-            <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">Amount to Withdraw</label>
-                <div className="relative">
-                    <span className="absolute left-4 top-3 text-slate-400 font-bold">₹</span>
-                    <input 
-                        type="number" 
-                        value={withdrawAmount}
-                        onChange={(e) => setWithdrawAmount(e.target.value)}
-                        className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:bg-white dark:focus:bg-slate-900 focus:border-primary-500 outline-none font-bold text-xl text-slate-900 dark:text-white"
-                        placeholder="0.00"
-                        autoFocus
-                    />
-                </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-               <button 
-                  onClick={() => setWithdrawSpeed('STANDARD')}
-                  className={`p-3 rounded-xl border-2 text-left transition-all ${withdrawSpeed === 'STANDARD' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-slate-200 dark:border-slate-700'}`}
-               >
-                   <div className="flex items-center gap-2 mb-1">
-                       <Clock className="w-4 h-4 text-primary-500" />
-                       <span className="font-bold text-sm text-slate-800 dark:text-white">Standard</span>
-                   </div>
-                   <p className="text-xs text-slate-500 dark:text-slate-400">24-48 Hours</p>
-                   <p className="text-xs font-semibold text-green-600 dark:text-green-400 mt-1">Free</p>
-               </button>
-               <button 
-                  onClick={() => setWithdrawSpeed('INSTANT')}
-                  className={`p-3 rounded-xl border-2 text-left transition-all ${withdrawSpeed === 'INSTANT' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-slate-200 dark:border-slate-700'}`}
-               >
-                   <div className="flex items-center gap-2 mb-1">
-                       <Zap className="w-4 h-4 text-amber-500" />
-                       <span className="font-bold text-sm text-slate-800 dark:text-white">Instant</span>
-                   </div>
-                   <p className="text-xs text-slate-500 dark:text-slate-400">Within 5 mins</p>
-                   <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mt-1">2% Fee</p>
-               </button>
-            </div>
-
-            {withdrawSpeed === 'INSTANT' && withdrawAmount && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-xl flex justify-between items-center text-sm text-amber-800 dark:text-amber-300">
-                    <span>Processing Fee (2%):</span>
-                    <span className="font-bold">-₹{(Number(withdrawAmount) * 0.02).toFixed(2)}</span>
-                </div>
-            )}
-
-            <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">Withdraw To</label>
-                <div className="flex gap-3 mb-4">
-                    <button 
-                        onClick={() => setWithdrawMethod('UPI')} 
-                        className={`flex-1 py-3 px-4 rounded-xl border-2 font-semibold text-sm transition-all ${withdrawMethod === 'UPI' ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                    >
-                        UPI Transfer
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <button onClick={() => setWithdrawMethod('UPI')} className={clsx("p-5 rounded-2xl border-2 transition-all flex flex-col items-center gap-2", withdrawMethod === 'UPI' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/10 text-indigo-700 dark:text-white' : 'border-slate-100 dark:border-white/5 text-slate-400')}>
+                        <Smartphone className="w-6 h-6" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">UPI Transfer</span>
                     </button>
-                    <button 
-                        onClick={() => setWithdrawMethod('BANK')} 
-                        className={`flex-1 py-3 px-4 rounded-xl border-2 font-semibold text-sm transition-all ${withdrawMethod === 'BANK' ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                    >
-                        Bank Transfer
+                    <button onClick={() => setWithdrawMethod('BANK')} className={clsx("p-5 rounded-2xl border-2 transition-all flex flex-col items-center gap-2", withdrawMethod === 'BANK' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/10 text-indigo-700 dark:text-white' : 'border-slate-100 dark:border-white/5 text-slate-400')}>
+                        <Building className="w-6 h-6" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Bank NEFT</span>
                     </button>
                 </div>
-                
+
                 <Input 
-                    label={withdrawMethod === 'UPI' ? 'UPI ID / VPA' : 'Account Number & IFSC'} 
-                    placeholder={withdrawMethod === 'UPI' ? 'username@upi' : 'Account No - IFSC Code'} 
-                    value={withdrawDetails}
-                    onChange={e => setWithdrawDetails(e.target.value)}
+                    label={withdrawMethod === 'UPI' ? "UPI VPA (example@upi)" : "Account Number & IFSC"} 
+                    placeholder={withdrawMethod === 'UPI' ? "student@okaxis" : "12345678, SBIN000..."} 
+                    value={withdrawDetails} 
+                    onChange={e => setWithdrawDetails(e.target.value)} 
                 />
+
+                <div className="grid grid-cols-2 gap-4">
+                   <button onClick={() => setWithdrawSpeed('STANDARD')} className={clsx("p-4 rounded-2xl border-2 text-left transition-all", withdrawSpeed === 'STANDARD' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/10' : 'border-slate-100 dark:border-white/5')}>
+                      <span className="block font-black text-xs uppercase tracking-widest mb-1 text-slate-900 dark:text-white">Standard</span>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">24-48h • ₹0 Fee</span>
+                   </button>
+                   <button onClick={() => setWithdrawSpeed('INSTANT')} className={clsx("p-4 rounded-2xl border-2 text-left transition-all", withdrawSpeed === 'INSTANT' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/10' : 'border-slate-100 dark:border-white/5')}>
+                      <span className="block font-black text-xs uppercase tracking-widest mb-1 text-slate-900 dark:text-white">IMPS Instant</span>
+                      <span className="text-[10px] text-indigo-500 uppercase font-bold tracking-tight">5m • 2% Fee</span>
+                   </button>
+                </div>
             </div>
 
-            <Button className="w-full h-12 text-lg" onClick={handleWithdraw} isLoading={isWithdrawing} disabled={!withdrawAmount || !withdrawDetails || Number(withdrawAmount) > user.balance}>
-                {withdrawSpeed === 'INSTANT' ? `Instant Withdraw ₹${(Number(withdrawAmount) * 0.98).toFixed(2)}` : `Withdraw ₹${withdrawAmount}`}
+            <Button className="w-full h-16 text-lg" variant="glow" onClick={handleWithdraw} isLoading={isWithdrawing} disabled={!withdrawAmount || !withdrawDetails || Number(withdrawAmount) > user.balance}>
+                Confirm Payout
             </Button>
          </div>
       </Modal>

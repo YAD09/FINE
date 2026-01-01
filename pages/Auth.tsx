@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button, Input, Card } from '../components/UI';
-import { User, UserRole } from '../types';
-import { RefreshCw, CheckSquare, Square, MailWarning, Sun, Moon } from 'lucide-react';
+import { User } from '../types';
+import { Sun, Moon, Zap, ShieldCheck, Mail, Lock, Loader2 } from 'lucide-react';
 import { API, getErrorMessage } from '../services/api';
-import { supabase } from '../services/supabase';
+import { clsx } from 'clsx';
 
 interface AuthProps {
   onLogin: (user: User, rememberMe: boolean) => void;
@@ -14,316 +14,177 @@ interface AuthProps {
 
 export const Auth: React.FC<AuthProps> = ({ onLogin, darkMode, toggleTheme }) => {
   const [isLogin, setIsLogin] = useState(true);
-  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [apiStatus, setApiStatus] = useState<'ONLINE' | 'OFFLINE'>('ONLINE');
+
   // Form Fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [college, setCollege] = useState('');
-  
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
-  // New Features State
-  const [rememberMe, setRememberMe] = useState(true);
-  const [captchaValue, setCaptchaValue] = useState('');
-  const [captchaInput, setCaptchaInput] = useState('');
-  const [captchaError, setCaptchaError] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  // OTP State (for when email confirmation is ENABLED)
-  const [showOtp, setShowOtp] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
-  const [pendingUser, setPendingUser] = useState<Partial<User> | null>(null);
-
-  // Initialize Captcha
   useEffect(() => {
-    generateCaptcha();
+    checkHealth();
   }, []);
 
-  // Listen for Magic Link clicks in other tabs
-  useEffect(() => {
-      const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-          if (event === 'SIGNED_IN' && session) {
-              setLoading(true);
-              try {
-                  const user = await API.auth.getCurrentUser();
-                  if (user) onLogin(user, true);
-              } catch (e) {
-                  console.error(e);
-              } finally {
-                  setLoading(false);
-              }
-          }
-      });
-      return () => authListener.subscription.unsubscribe();
-  }, []);
-
-  const generateCaptcha = () => {
-    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    let result = '';
-    for (let i = 0; i < 6; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setCaptchaValue(result);
-    setCaptchaInput('');
-    setCaptchaError(false);
-    drawCaptcha(result);
+  const checkHealth = async () => {
+    const isOnline = await API.auth.testConnection();
+    setApiStatus(isOnline ? 'ONLINE' : 'OFFLINE');
   };
-
-  const drawCaptcha = (text: string) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Dark mode awareness for captcha bg
-    const isDark = document.documentElement.classList.contains('dark');
-    ctx.fillStyle = isDark ? '#1e293b' : '#F8FAFC';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    for (let i = 0; i < 7; i++) {
-      ctx.strokeStyle = `rgba(100, 116, 139, ${Math.random()})`;
-      ctx.beginPath();
-      ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
-      ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
-      ctx.stroke();
-    }
-    ctx.font = 'bold 24px monospace';
-    ctx.fillStyle = isDark ? '#e2e8f0' : '#334155';
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'center';
-    for (let i = 0; i < text.length; i++) {
-      ctx.save();
-      ctx.translate(15 + i * 20, canvas.height / 2);
-      ctx.rotate((Math.random() - 0.5) * 0.4);
-      ctx.fillText(text[i], 0, 0);
-      ctx.restore();
-    }
-  };
-
-  // Re-draw captcha when theme changes
-  useEffect(() => {
-      if (captchaValue) drawCaptcha(captchaValue);
-  }, [darkMode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    // Skip Captcha for OTP step
-    if (!showOtp && captchaInput.toUpperCase() !== captchaValue) {
-      setCaptchaError(true);
-      generateCaptcha();
-      return;
-    }
-
     setLoading(true);
 
     try {
       if (isLogin) {
         const user = await API.auth.login(email, password);
-        onLogin(user, rememberMe);
-      } else if (showOtp) {
-        // Step 2: Verify OTP
-        const user = await API.auth.verifySignup(email, otpCode, pendingUser!);
-        onLogin(user, rememberMe);
+        onLogin(user, true);
       } else {
-        // Step 1: Initial Register
         const result = await API.auth.register({ name, email, password, college });
-        if (result.requiresOtp) {
-            setShowOtp(true);
-            setPendingUser({ name, email, college });
-            setError(''); 
+        if (result.id) {
+           // If direct register returns a user (demo mode), log in
+           onLogin(result, true);
         } else {
-            // Logged in immediately (Email Confirmation Disabled)
-            onLogin(result, rememberMe);
+           setError("Registration initialized. Check your university inbox.");
         }
       }
     } catch (err: any) {
-        let msg = getErrorMessage(err);
-        // Helpful hint for Supabase Email Limits
-        if (msg.toLowerCase().includes('sending confirmation email')) {
-             msg = "Supabase Email Error: Please go to your Supabase Dashboard > Authentication > Providers > Email and DISABLE 'Confirm email'.";
-        }
-        setError(msg);
-        generateCaptcha();
+      // getErrorMessage is now robust to handle objects
+      setError(getErrorMessage(err));
+      checkHealth();
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleManualVerificationCheck = async () => {
-      setLoading(true);
-      try {
-          // Force a session check
-          const { data } = await supabase.auth.refreshSession();
-          if (data.session) {
-              const user = await API.auth.getCurrentUser();
-              if (user) onLogin(user, true);
-          } else {
-              setError("Email not verified yet. Please click the link in your inbox.");
-          }
-      } catch (e) {
-          setError("Verification check failed.");
-      } finally {
-          setLoading(false);
-      }
-  };
-
-  const handleGoogleLogin = async () => {
+  const handleQuickDemo = async () => {
     setLoading(true);
     try {
-      const user = await API.auth.googleLogin();
-      onLogin(user, rememberMe);
-    } catch (err: any) {
-        let msg = getErrorMessage(err);
-        if (msg.toLowerCase().includes('sending confirmation email')) {
-             msg = "Setup Required: Please disable 'Confirm email' in Supabase Dashboard for this demo to work.";
-        }
-        setError(msg);
+      const user = await API.auth.login('alex@uni.edu', 'password123');
+      onLogin(user, true);
+    } catch (e) {
+      setError("Demo vault inaccessible.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center items-center p-4 transition-colors duration-300 relative">
-      <button 
-        onClick={toggleTheme}
-        className="absolute top-4 right-4 p-3 rounded-full bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700 z-50"
-      >
-        {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-      </button>
-
-      <div className="mb-8 text-center">
-        {/* Logo Image */}
-        <img 
-            src="https://i.ibb.co/31c963L/Task-Link.png" 
-            alt="TaskLink Logo" 
-            className="h-16 mx-auto mb-4 object-contain"
-        />
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">TaskLink</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-2">The student marketplace for getting things done.</p>
+    <div className="min-h-screen bg-white dark:bg-[#020617] flex flex-col items-center justify-center p-8 relative overflow-hidden transition-colors duration-700 selection:bg-indigo-500/20">
+      <div className="bg-mesh opacity-50"></div>
+      
+      {/* Absolute Header with minimal controls */}
+      <div className="absolute top-10 left-10 right-10 flex justify-between items-center z-50">
+          <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg">
+                  <span className="text-white font-black text-sm">TL</span>
+              </div>
+              <span className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-600">TaskLink OS</span>
+          </div>
+          <button 
+            onClick={toggleTheme}
+            className="p-2.5 rounded-full bg-slate-50 dark:bg-white/5 text-slate-400 hover:text-indigo-600 transition-all border border-slate-100 dark:border-white/5"
+          >
+            {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
       </div>
 
-      <Card className="w-full max-w-md p-8">
-        <h2 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">
-            {showOtp ? 'Verify Email' : (isLogin ? 'Welcome Back' : 'Create Account')}
-        </h2>
+      <div className="w-full max-w-[440px] z-10 animate-in fade-in slide-in-from-bottom-8 duration-1000">
         
-        {error && (
-            <div className={`px-4 py-3 rounded-lg text-sm mb-4 flex gap-2 items-start ${error.includes('Supabase Dashboard') ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-red-50 text-red-600'}`}>
-                <MailWarning className="w-5 h-5 shrink-0" />
-                <span>{error}</span>
+        {/* Sleek Form Section */}
+        <div className="space-y-12">
+            <div className="text-center space-y-4">
+                <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">
+                    {isLogin ? 'Welcome Back.' : 'Initialize Access.'}
+                </h1>
+                <p className="text-slate-400 dark:text-slate-500 font-medium text-sm tracking-tight">
+                    {isLogin ? 'Enter your student credentials to sync with the network.' : 'Join the exclusive university task exchange.'}
+                </p>
             </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          
-          {/* OTP / Verification View */}
-          {showOtp ? (
-              <div className="space-y-4 animate-in fade-in">
-                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl text-blue-800 dark:text-blue-300 text-sm">
-                      We sent a verification link/code to <b>{email}</b>.
-                      <br/><br/>
-                      <strong>Option 1:</strong> Click the link in your email (easiest).
-                      <br/>
-                      <strong>Option 2:</strong> Enter the code below.
-                  </div>
-                  
-                  <Input 
-                    label="Verification Code" 
-                    placeholder="123456" 
-                    value={otpCode} 
-                    onChange={e => setOtpCode(e.target.value)} 
-                    className="text-center text-2xl tracking-widest font-bold text-slate-900 dark:text-white" 
-                  />
-                  
-                  <Button type="submit" className="w-full h-12" isLoading={loading}>Verify Code</Button>
-                  
-                  <div className="relative flex py-2 items-center">
-                      <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
-                      <span className="flex-shrink-0 mx-4 text-slate-400 text-xs uppercase">OR</span>
-                      <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
-                  </div>
+            {error && (
+              <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-500/5 border border-red-100 dark:border-red-500/10 text-red-600 dark:text-red-400 text-xs font-bold leading-relaxed flex gap-3 items-center animate-in slide-in-from-top-2">
+                 <ShieldCheck className="w-4 h-4 shrink-0" /> 
+                 <span>{error}</span>
+              </div>
+            )}
 
-                  <Button type="button" variant="secondary" className="w-full" onClick={handleManualVerificationCheck} isLoading={loading}>
-                      I've Verified My Email (Click Here)
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-4">
+                {!isLogin && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input label="Name" placeholder="Alex J." value={name} onChange={e => setName(e.target.value)} required />
+                      <Input label="College" placeholder="Stanford" value={college} onChange={e => setCollege(e.target.value)} required />
+                    </div>
+                )}
+                
+                <Input 
+                    label="University Identity" 
+                    type="email" 
+                    placeholder="student@university.edu" 
+                    value={email} 
+                    onChange={e => setEmail(e.target.value)} 
+                    icon={<Mail className="w-4 h-4" />}
+                    required 
+                />
+                
+                <Input 
+                    label="Access Key" 
+                    type="password" 
+                    placeholder="••••••••" 
+                    value={password} 
+                    onChange={e => setPassword(e.target.value)} 
+                    icon={<Lock className="w-4 h-4" />}
+                    required 
+                />
+              </div>
+
+              <div className="pt-4 flex flex-col gap-4">
+                  <Button type="submit" className="w-full h-14 !rounded-2xl text-base font-black uppercase tracking-widest shadow-2xl shadow-indigo-600/20" isLoading={loading}>
+                    {isLogin ? 'Execute Login' : 'Register Account'}
                   </Button>
                   
-                  <button type="button" onClick={() => setShowOtp(false)} className="text-sm text-slate-500 hover:underline w-full text-center mt-2">Back to Signup</button>
+                  {isLogin && (
+                    <button 
+                        type="button" 
+                        onClick={handleQuickDemo}
+                        className="h-12 w-full rounded-2xl border border-slate-100 dark:border-white/5 text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] hover:bg-slate-50 dark:hover:bg-white/5 transition-all flex items-center justify-center gap-2"
+                    >
+                        <Zap className="w-3.5 h-3.5" /> Fast-Track Demo
+                    </button>
+                  )}
               </div>
-          ) : (
-              // Standard Login/Signup View
-              <>
-                {!isLogin && (
-                    <>
-                    <Input placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} required />
-                    <Input placeholder="College / University" value={college} onChange={e => setCollege(e.target.value)} required />
-                    </>
-                )}
-                <Input type="email" label="Email Address" placeholder="name@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
-                <Input type="password" label="Password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+            </form>
 
-                <div>
-                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">Security Check</label>
-                    <div className="flex gap-2 mb-2">
-                    <div className="bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 select-none">
-                        <canvas ref={canvasRef} width={140} height={42} className="cursor-pointer" onClick={generateCaptcha} title="Click to refresh" />
-                    </div>
-                    <button type="button" onClick={generateCaptcha} className="p-2.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-xl transition-colors">
-                        <RefreshCw className="w-5 h-5" />
-                    </button>
-                    </div>
-                    <Input 
-                    placeholder="Enter characters above" 
-                    value={captchaInput}
-                    onChange={e => { setCaptchaInput(e.target.value); setCaptchaError(false); }}
-                    error={captchaError ? "Incorrect captcha. Please try again." : undefined}
-                    className="uppercase tracking-widest font-mono"
-                    required
-                    />
-                </div>
+            <div className="text-center">
+              <button 
+                onClick={() => { setIsLogin(!isLogin); setError(''); }} 
+                className="text-[10px] font-black text-slate-400 hover:text-indigo-600 transition-colors uppercase tracking-[0.3em]"
+              >
+                {isLogin ? "Request New Identity" : "Already Authenticated"}
+              </button>
+            </div>
+        </div>
+      </div>
 
-                <div className="flex items-center justify-between pt-1">
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                    <button type="button" onClick={() => setRememberMe(!rememberMe)} className={`w-5 h-5 flex items-center justify-center rounded border transition-all ${rememberMe ? 'bg-primary-600 border-primary-600 text-white' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-transparent'}`}>
-                        <CheckSquare className="w-3.5 h-3.5" strokeWidth={3} />
-                    </button>
-                    <span className="text-sm text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200 select-none">Remember me</span>
-                    </label>
-                    {isLogin && <a href="#" className="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">Forgot Password?</a>}
-                </div>
-                
-                <Button type="submit" className="w-full h-12 text-lg mt-2" isLoading={loading}>
-                    {isLogin ? 'Sign In' : 'Join TaskLink'}
-                </Button>
-
-                <div className="relative my-6">
-                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100 dark:border-slate-700"></div></div>
-                    <div className="relative flex justify-center text-sm"><span className="px-2 bg-white dark:bg-slate-900 text-slate-400">Or continue with</span></div>
-                </div>
-
-                <Button type="button" variant="secondary" className="w-full relative" onClick={handleGoogleLogin} disabled={loading}>
-                    <svg className="w-5 h-5 absolute left-4" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                    </svg>
-                    Google
-                </Button>
-              </>
-          )}
-        </form>
-
-        <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
-          {isLogin ? "New to TaskLink?" : "Already have an account?"}{' '}
-          <button onClick={() => { setIsLogin(!isLogin); setError(''); setShowOtp(false); }} className="text-primary-600 dark:text-primary-400 font-semibold hover:underline">
-            {isLogin ? 'Create Account' : 'Sign In'}
-          </button>
-        </p>
-      </Card>
+      {/* Subtle Status Bar */}
+      <div className="absolute bottom-10 inset-x-10 flex items-center justify-between z-10 opacity-40 hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-3">
+            <div className={clsx(
+              "w-2 h-2 rounded-full",
+              apiStatus === 'ONLINE' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)] animate-pulse"
+            )} />
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
+                Sync Health: {apiStatus}
+            </span>
+        </div>
+        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
+            Build 2025.1.0-STABLE
+        </span>
+      </div>
     </div>
   );
 };

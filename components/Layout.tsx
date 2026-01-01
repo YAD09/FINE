@@ -10,18 +10,15 @@ import {
   LogOut,
   ShieldCheck,
   Bell,
-  Briefcase,
-  Layers,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Moon,
+  WifiOff,
   Sun,
-  Users,
-  Circle
+  Moon,
+  Users
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { User as UserType, Notification, Task, TaskStatus, OfferStatus, AvailabilityStatus } from '../types';
+import { User as UserType, Notification, Task, TaskStatus, AvailabilityStatus } from '../types';
+import { Badge } from './UI';
+import { getIsDemoMode } from '../services/api';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -35,6 +32,7 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children, user, tasks = [], notifications = [], onLogout, darkMode, toggleTheme }) => {
   const location = useLocation();
+  const isDemo = getIsDemoMode();
 
   if (!user) {
     return <>{children}</>;
@@ -44,267 +42,142 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, tasks = [], noti
 
   const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-    { label: 'Browse Tasks', icon: Search, path: '/tasks' },
+    { label: 'Browse', icon: Search, path: '/tasks' },
     { label: 'Post Task', icon: PlusCircle, path: '/post' },
     { label: 'Community', icon: Users, path: '/community' },
     { label: 'Wallet', icon: Wallet, path: '/wallet' },
-    { label: 'Notifications', icon: Bell, path: '/notifications', badge: unreadCount },
-    { label: 'Profile', icon: User, path: '/profile' },
+    { label: 'Inbox', icon: Bell, path: '/notifications', badge: unreadCount },
   ];
 
   if (user.role === 'ADMIN') {
     navItems.push({ label: 'Admin', icon: ShieldCheck, path: '/admin' });
   }
 
-  // Sidebar Tasks Logic
-  const doingTasks = tasks.filter(t => t.executorId === user.id && t.status === TaskStatus.IN_PROGRESS);
-  const acceptedTasks = tasks.filter(t => t.executorId === user.id && t.status === TaskStatus.ASSIGNED);
-  const rejectedTasks = tasks.filter(t => 
-    t.executorId !== user.id && 
-    t.offers?.some(o => o.userId === user.id && o.status === OfferStatus.REJECTED)
-  );
-  const postedTasks = tasks.filter(t => t.posterId === user.id && t.status === TaskStatus.OPEN);
+  const activeTasksCount = tasks.filter(t => t.executorId === user.id && [TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS].includes(t.status)).length;
 
   const getStatusColor = (status: AvailabilityStatus) => {
     switch(status) {
-      case AvailabilityStatus.ONLINE: return "bg-green-500";
-      case AvailabilityStatus.BUSY: return "bg-red-500";
-      case AvailabilityStatus.URGENT_ONLY: return "bg-amber-500";
+      case AvailabilityStatus.ONLINE: return "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]";
+      case AvailabilityStatus.BUSY: return "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.4)]";
+      case AvailabilityStatus.URGENT_ONLY: return "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]";
       default: return "bg-slate-400";
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row transition-colors duration-300">
-      {/* Mobile Header */}
-      <div className="md:hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 flex justify-between items-center sticky top-0 z-30 transition-colors duration-300">
-         <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center text-white font-bold">TL</div>
-            <span className="font-bold text-lg text-slate-800 dark:text-white">TaskLink</span>
-         </div>
-         <div className="flex items-center gap-3">
-            {toggleTheme && (
-                <button onClick={toggleTheme} className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
-                    {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                </button>
-            )}
-            <Link to="/notifications" className="relative p-1">
-               <Bell className="w-6 h-6 text-slate-600 dark:text-slate-300" />
-               {unreadCount > 0 && (
-                   <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold">
-                     {unreadCount > 9 ? '9+' : unreadCount}
-                   </span>
-               )}
-            </Link>
-            <span className="text-sm font-medium text-slate-600 dark:text-slate-300 hidden sm:block">₹{user.balance}</span>
-            <Link to="/profile">
-               <img src={user.avatarUrl} alt="profile" className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700" />
-            </Link>
-            <button 
-                onClick={onLogout} 
-                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                title="Sign Out"
-            >
-                <LogOut className="w-5 h-5" />
-            </button>
-         </div>
-      </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-[#020617] flex flex-col md:flex-row transition-colors duration-700">
+      <div className="bg-mesh"></div>
+      <div className="bg-grain"></div>
 
-      {/* Sidebar (Desktop) */}
-      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-screen sticky top-0 transition-colors duration-300">
-        <div className="p-6 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-primary-200 dark:shadow-none">TL</div>
-                <div>
-                  <h1 className="font-bold text-xl text-slate-900 dark:text-white tracking-tight">TaskLink</h1>
-                  <p className="text-xs text-slate-400 font-medium">Student Marketplace</p>
+      {/* Modern Desktop Sidebar */}
+      <aside className="hidden md:flex flex-col w-[280px] h-screen sticky top-0 p-6 z-20">
+        <div className="glass-panel h-full rounded-[2.5rem] flex flex-col overflow-hidden border-white/20 shadow-2xl">
+            
+            {/* Logo Section */}
+            <div className="p-10 pb-6 shrink-0">
+                <div className="flex items-center gap-4 mb-10">
+                    <div className="w-11 h-11 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-display font-black text-xl shadow-[0_15px_30px_-5px_rgba(79,70,229,0.5)]">TL</div>
+                    <div>
+                      <h1 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tighter leading-none">TaskLink</h1>
+                      <span className="text-[9px] font-black uppercase tracking-[0.3em] text-indigo-500/80 mt-1 block">Student OS</span>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-3 bg-slate-50/50 dark:bg-white/5 p-4 rounded-2xl border border-slate-100 dark:border-white/5 backdrop-blur-xl">
+                      <div className={clsx("w-2 h-2 rounded-full shrink-0", getStatusColor(user.availability))}></div>
+                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">{user.availability?.replace('_', ' ')}</span>
+                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
                 </div>
             </div>
-        </div>
 
-        <div className="px-6 pb-4">
-             <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 p-2 rounded-lg border border-slate-100 dark:border-slate-700">
-                  <span className={clsx("w-2 h-2 rounded-full", getStatusColor(user.availability || AvailabilityStatus.ONLINE))}></span>
-                  <span className="capitalize">{user.availability?.toLowerCase().replace('_', ' ') || 'Online'}</span>
-                  <span className="ml-auto text-[10px] opacity-50">(Change in Profile)</span>
-             </div>
-        </div>
+            {/* Navigation */}
+            <nav className="flex-1 px-4 py-2 space-y-1.5 overflow-y-auto custom-scrollbar">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={clsx(
+                        "flex items-center justify-between px-5 py-3.5 rounded-2xl transition-all duration-300 group relative",
+                        isActive 
+                          ? "bg-indigo-600 text-white shadow-xl shadow-indigo-600/20" 
+                          : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white"
+                      )}
+                    >
+                      <div className="flex items-center gap-4">
+                          <Icon className={clsx("w-4.5 h-4.5", isActive ? "opacity-100" : "opacity-60 group-hover:opacity-100")} />
+                          <span className="text-[12px] font-black uppercase tracking-widest">{item.label}</span>
+                      </div>
+                      {item.badge !== undefined && item.badge > 0 && (
+                          <span className="bg-rose-500 text-white text-[9px] font-black px-2 py-0.5 rounded-lg shadow-lg">
+                              {item.badge}
+                          </span>
+                      )}
+                    </Link>
+                  );
+                })}
+            </nav>
 
-        <nav className="flex-1 px-4 mt-2 overflow-y-auto custom-scrollbar">
-          <div className="space-y-1 mb-8">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={clsx(
-                    "flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group",
-                    isActive 
-                      ? "bg-primary-50 dark:bg-slate-800 text-primary-600 dark:text-primary-400 font-semibold" 
-                      : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                      <Icon className={clsx("w-5 h-5", isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300")} />
-                      {item.label}
-                  </div>
-                  {item.badge !== undefined && item.badge > 0 && (
-                      <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                          {item.badge}
-                      </span>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Doing Tasks Section */}
-          {doingTasks.length > 0 && (
-            <div className="mb-6">
-              <h3 className="px-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Briefcase className="w-3 h-3" /> Doing ({doingTasks.length})
-              </h3>
-              <div className="space-y-1">
-                {doingTasks.map(task => (
-                  <Link 
-                    key={task.id} 
-                    to={`/tasks/${task.id}`}
-                    className="block px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-primary-600 dark:hover:text-primary-400 rounded-lg truncate transition-colors"
-                    title={task.title}
-                  >
-                    {task.title}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Accepted Tasks Section */}
-          {acceptedTasks.length > 0 && (
-            <div className="mb-6">
-              <h3 className="px-4 text-xs font-bold text-green-600 dark:text-green-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <CheckCircle2 className="w-3 h-3" /> Accepted ({acceptedTasks.length})
-              </h3>
-              <div className="space-y-1">
-                {acceptedTasks.map(task => (
-                  <Link 
-                    key={task.id} 
-                    to={`/tasks/${task.id}`}
-                    className="block px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-700 dark:hover:text-green-400 rounded-lg truncate transition-colors border-l-2 border-transparent hover:border-green-500"
-                    title={task.title}
-                  >
-                    {task.title}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Rejected Tasks Section */}
-          {rejectedTasks.length > 0 && (
-            <div className="mb-6">
-              <h3 className="px-4 text-xs font-bold text-red-500 dark:text-red-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <XCircle className="w-3 h-3" /> Rejected ({rejectedTasks.length})
-              </h3>
-              <div className="space-y-1">
-                {rejectedTasks.map(task => (
-                  <Link 
-                    key={task.id} 
-                    to={`/tasks/${task.id}`}
-                    className="block px-4 py-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 rounded-lg truncate transition-colors opacity-80 hover:opacity-100"
-                    title={task.title}
-                  >
-                    {task.title}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Posted Tasks Section */}
-          {postedTasks.length > 0 && (
-            <div className="mb-6">
-              <h3 className="px-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                <Layers className="w-3 h-3" /> Posted ({postedTasks.length})
-              </h3>
-              <div className="space-y-1">
-                {postedTasks.map(task => (
-                  <Link 
-                    key={task.id} 
-                    to={`/tasks/${task.id}`}
-                    className="block px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-primary-600 dark:hover:text-primary-400 rounded-lg truncate transition-colors"
-                    title={task.title}
-                  >
-                    {task.title}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-        </nav>
-
-        <div className="px-4 pt-2">
-             {toggleTheme && (
-                <button 
-                    onClick={toggleTheme}
-                    className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-all"
-                >
-                    {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                    <span className="text-sm font-medium">{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
-                </button>
-             )}
-        </div>
-
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 shrink-0">
-          <Link to="/profile" className="flex items-center gap-3 mb-4 px-2 hover:bg-slate-50 dark:hover:bg-slate-800 p-2 rounded-lg transition-colors">
-            <div className="relative">
-              <img src={user.avatarUrl} alt="profile" className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 object-cover" />
-              {user.verified && (
-                <div className="absolute -bottom-1 -right-1 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full p-0.5">
-                  <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" /></svg>
+            {/* User Profile Area */}
+            <div className="p-8 border-t border-slate-100 dark:border-white/5 bg-slate-50/30 dark:bg-black/10">
+                <div className="flex items-center gap-4 mb-6">
+                     <Link to="/profile" className="relative shrink-0">
+                        <img src={user.avatarUrl} alt="profile" className="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 object-cover ring-2 ring-white dark:ring-slate-800 shadow-lg" />
+                        {user.verified && (
+                            <div className="absolute -top-1 -right-1 bg-indigo-500 border-2 border-white dark:border-slate-900 rounded-full p-0.5">
+                                <ShieldCheck className="w-2.5 h-2.5 text-white" />
+                            </div>
+                        )}
+                     </Link>
+                     <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-black text-slate-800 dark:text-white truncate tracking-tight">{user.name}</p>
+                        <p className="text-[11px] font-bold text-indigo-500 mt-0.5">₹{user.balance.toLocaleString()}</p>
+                     </div>
                 </div>
-              )}
+                <div className="flex gap-2">
+                    <button onClick={toggleTheme} className="flex-1 p-3 rounded-xl bg-white dark:bg-white/5 border border-slate-100 dark:border-white/5 text-slate-400 hover:text-indigo-500 transition-all flex items-center justify-center">
+                        {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                    </button>
+                    <button onClick={onLogout} className="flex-1 p-3 rounded-xl bg-white dark:bg-white/5 border border-slate-100 dark:border-white/5 text-slate-400 hover:text-rose-500 transition-all flex items-center justify-center">
+                        <LogOut className="w-4 h-4" />
+                    </button>
+                </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{user.name}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.username}</p>
-            </div>
-          </Link>
-          <button 
-            onClick={onLogout}
-            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign Out
-          </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pb-20 md:pb-0 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
-        <div className="max-w-5xl mx-auto p-4 md:p-8">
+      {/* Content Viewport */}
+      <main className="flex-1 overflow-y-auto pb-24 md:pb-0 z-10 custom-scrollbar">
+        {isDemo && (
+          <div className="sticky top-0 z-30 bg-amber-500/10 backdrop-blur-md border-b border-amber-500/20 py-2 px-6 flex items-center justify-center gap-3">
+              <WifiOff className="w-3.5 h-3.5 text-amber-500" />
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-600">Local Sandbox Mode Active</span>
+          </div>
+        )}
+        <div className="max-w-6xl mx-auto p-8 md:p-14 lg:p-20 animate-in fade-in slide-in-from-bottom-6 duration-1000">
           {children}
         </div>
       </main>
 
-      {/* Mobile Bottom Nav */}
-      <div className="md:hidden fixed bottom-0 inset-x-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-2 px-4 flex justify-between z-30 transition-colors duration-300">
-        {navItems.filter(i => i.label !== 'Notifications' && i.label !== 'Admin').slice(0, 5).map((item) => {
-           const Icon = item.icon;
-           const isActive = location.pathname === item.path;
-           return (
-             <Link 
-               key={item.path} 
-               to={item.path} 
-               className={clsx("flex flex-col items-center gap-1 p-2 rounded-lg", isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 dark:text-slate-500")}
-             >
-               <Icon className="w-6 h-6" />
-               <span className="text-[10px] font-medium">{item.label}</span>
-             </Link>
-           )
-        })}
+      {/* Mobile Floating Bottom Nav */}
+      <div className="md:hidden fixed bottom-6 inset-x-6 z-40">
+        <div className="glass-panel border-white/20 rounded-3xl py-4 px-8 flex justify-between items-center shadow-2xl">
+            {navItems.slice(0, 4).map((item) => {
+               const Icon = item.icon;
+               const isActive = location.pathname === item.path;
+               return (
+                 <Link 
+                   key={item.path} 
+                   to={item.path} 
+                   className={clsx("transition-all duration-300", isActive ? "text-indigo-600 scale-125" : "text-slate-400")}
+                 >
+                   <Icon className="w-5 h-5" />
+                 </Link>
+               )
+            })}
+        </div>
       </div>
     </div>
   );

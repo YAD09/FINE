@@ -40,8 +40,8 @@ export enum AvailabilityStatus {
 
 export enum ServiceTier {
   STANDARD = 'STANDARD',
-  URGENT = 'URGENT', // 1.5x
-  OVERNIGHT = 'OVERNIGHT' // 2.0x
+  URGENT = 'URGENT', 
+  OVERNIGHT = 'OVERNIGHT'
 }
 
 export interface User {
@@ -62,8 +62,8 @@ export interface User {
   tasksCompleted: number;
   avatarUrl?: string;
   availability: AvailabilityStatus;
-  skills?: string[]; // For Match Score
-  portfolio?: string[]; // IDs of tasks in portfolio
+  skills?: string[];
+  portfolio?: string[];
 }
 
 export interface Comment {
@@ -85,7 +85,7 @@ export interface Offer {
   price: number;
   status: OfferStatus;
   createdAt: string;
-  matchScore?: number; // AI Skill Match Score
+  matchScore?: number;
 }
 
 export interface Attachment {
@@ -93,14 +93,14 @@ export interface Attachment {
   name: string;
   url: string;
   type: 'IMAGE' | 'DOCUMENT' | 'AUDIO';
-  isVerified?: boolean; // Virus scan check
+  isVerified?: boolean;
 }
 
 export interface Review {
   id: string;
   reviewerId: string;
   revieweeId: string;
-  rating: number; // 1-5
+  rating: number;
   comment: string;
   createdAt: string;
 }
@@ -123,47 +123,31 @@ export interface Task {
   tags: string[];
   executorId?: string;
   submissionUrl?: string;
-  voiceNoteUrl?: string; // Voice instruction
+  voiceNoteUrl?: string;
   offers: Offer[];
   comments: Comment[];
   attachments?: Attachment[];
   reviews?: Review[];
-  plagiarismScore?: number; // 0-100 (Low is good)
+  plagiarismScore?: number;
   proofs?: {
     draft?: Attachment[];
     final?: Attachment[];
   };
-}
-
-export interface Community {
-  id: string;
-  name: string;
-  description: string;
-  type: 'CAMPUS' | 'TOPIC' | 'GENERAL';
-  memberCount: number;
-  icon?: string;
-}
-
-export interface CommunityPost {
-  id: string;
-  communityId: string;
-  content: string;
-  anonymousName: string; // "Anonymous Fox"
-  anonymousAvatar: string; // Random generated avatar
-  likes: number;
-  comments: number;
-  createdAt: string;
-  type: 'QUERY' | 'CELEBRATION' | 'OPPORTUNITY' | 'CONFESSION';
+  autoApproveAt?: string; // ISO string for auto-payout
 }
 
 export interface Transaction {
   id: string;
   userId: string;
+  targetUserId?: string; // For transfers
+  taskId?: string;
   type: 'DEPOSIT' | 'WITHDRAWAL' | 'ESCROW_LOCK' | 'PAYMENT_RELEASE' | 'REFUND' | 'DISPUTE_RESOLUTION';
   amount: number;
+  fee?: number;
   date: string;
   description: string;
   status: 'SUCCESS' | 'PENDING' | 'FAILED';
+  idempotencyKey: string; // Prevents double spending
 }
 
 export interface Notification {
@@ -174,5 +158,28 @@ export interface Notification {
   message: string;
   link?: string;
   isRead: boolean;
+  createdAt: string;
+}
+
+// Added Community interface to resolve errors in Community.tsx
+export interface Community {
+  id: string;
+  name: string;
+  description: string;
+  type: 'CAMPUS' | 'TOPIC' | 'GENERAL';
+  memberCount: number;
+  icon: string;
+}
+
+// Added CommunityPost interface to resolve errors in Community.tsx
+export interface CommunityPost {
+  id: string;
+  communityId: string;
+  content: string;
+  anonymousName: string;
+  anonymousAvatar: string;
+  likes: number;
+  comments: number;
+  type: 'QUERY' | 'CELEBRATION' | 'CONFESSION';
   createdAt: string;
 }

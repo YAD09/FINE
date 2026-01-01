@@ -14,6 +14,9 @@ import { PublicProfile } from './pages/PublicProfile';
 import { Notifications } from './pages/Notifications';
 import { Community } from './pages/Community';
 import { Home } from './pages/Home';
+import { Terms } from './pages/Terms';
+import { Privacy } from './pages/Privacy';
+import { Safety } from './pages/Safety';
 import { User, Task, Notification } from './types';
 import { API, getErrorMessage } from './services/api';
 
@@ -158,27 +161,9 @@ function App() {
         {/* Public Routes */}
         <Route path="/" element={<Home user={user} darkMode={darkMode} toggleTheme={toggleTheme} />} />
         <Route path="/auth" element={!user ? <Auth onLogin={handleLogin} darkMode={darkMode} toggleTheme={toggleTheme} /> : <Navigate to="/dashboard" />} />
-        
-        {/* Protected Routes (Wrapped in Layout) */}
-        <Route element={
-            user ? (
-                <Layout 
-                    user={user} 
-                    tasks={tasks} 
-                    notifications={notifications} 
-                    onLogout={handleLogout}
-                    darkMode={darkMode}
-                    toggleTheme={toggleTheme}
-                >
-                   {/* This empty outlet handles nested routes if we used standard RR6 structure, 
-                       but here we just wrap individual components for simplicity in migration */}
-                   <></> 
-                </Layout>
-            ) : <Navigate to="/auth" />
-        }>
-            {/* We manually wrap children in Layout logic via route composition or render prop pattern if strictly needed, 
-                but simpler here: just check user state inside map */}
-        </Route>
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/safety" element={<Safety />} />
       </Routes>
 
       {/* Active User Routes with Sidebar Layout */}

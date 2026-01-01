@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en" class="dark">
   <head>
@@ -6,41 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TaskLink - Premium Student Marketplace</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Razorpay Checkout Script -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         darkMode: 'class',
         theme: {
           extend: {
-            colors: {
-              background: '#030712', // Richer, deeper black
-              surface: '#0B101B',    // Slightly lighter for cards
-              primary: {
-                50: '#f0f9ff',
-                100: '#e0f2fe',
-                200: '#bae6fd',
-                300: '#7dd3fc',
-                400: '#38bdf8',
-                500: '#0ea5e9',
-                600: '#0284c7',
-                700: '#0369a1',
-                800: '#075985',
-                900: '#0c4a6e',
-                950: '#082f49',
-              },
-              slate: {
-                850: '#151e32',
-                900: '#0f172a',
-                950: '#020617',
-              }
-            },
             fontFamily: {
-              sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+              sans: ['Inter', 'sans-serif'],
+              display: ['Plus Jakarta Sans', 'sans-serif'],
+            },
+            colors: {
+              background: '#020617', 
+              surface: '#0F172A',
+              primary: {
+                50: '#eef2ff',
+                100: '#e0e7ff',
+                200: '#c7d2fe',
+                300: '#a5b4fc',
+                400: '#818cf8',
+                500: '#6366f1', // Indigo
+                600: '#4f46e5',
+                700: '#4338ca',
+                800: '#3730a3',
+                900: '#312e81',
+                950: '#1e1b4b',
+              },
+            },
+            boxShadow: {
+              'glow': '0 0 20px rgba(99, 102, 241, 0.5)',
+              'glow-sm': '0 0 10px rgba(99, 102, 241, 0.3)',
+              'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
             },
             animation: {
-              'shimmer': 'shimmer 2s linear infinite',
-              'spotlight': 'spotlight 2s ease .75s 1 forwards',
-              'fade-in': 'fade-in 0.5s ease-out',
+              'shimmer': 'shimmer 2.5s linear infinite',
               'float': 'float 6s ease-in-out infinite',
               'scroll': 'scroll 40s linear infinite',
             },
@@ -48,14 +49,6 @@
               shimmer: {
                 from: { backgroundPosition: '0 0' },
                 to: { backgroundPosition: '-200% 0' }
-              },
-              spotlight: {
-                '0%': { opacity: 0, transform: 'translate(-50%, -150%) scale(0.5)' },
-                '100%': { opacity: 1, transform: 'translate(-50%, 0) scale(1)' }
-              },
-              'fade-in': {
-                '0%': { opacity: 0, transform: 'translateY(10px)' },
-                '100%': { opacity: 1, transform: 'translateY(0)' }
               },
               float: {
                 '0%, 100%': { transform: 'translateY(0)' },
@@ -70,7 +63,6 @@
         }
       }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script type="importmap">
 {
   "imports": {
